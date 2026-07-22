@@ -4,7 +4,25 @@ import time
 import uuid
 import yt_dlp
 from pyrogram import Client, filters
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 
+# 1. Render Port Bind Fix (Taaki Free Web Service active rahe)
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is Running Alive!")
+
+def run_http_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    server.serve_forever()
+
+# Background thread me HTTP server start karna
+threading.Thread(target=run_http_server, daemon=True).start()
+
+# 2. Telegram Bot Configuration
 BOT_TOKEN = "8816078528:AAHdxpOtiknmkHOvH9dMnE6kin9cgJnhMrg"
 API_ID = 26585721
 API_HASH = "4887f511028d113e5f11d0e6fc583916"
