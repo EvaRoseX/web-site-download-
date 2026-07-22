@@ -13,7 +13,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "8779483392:AAFmdT-b3--1vbvSBZ8nlffY24Zh
 API_ID = int(os.environ.get("API_ID", "26585721"))
 API_HASH = os.environ.get("API_HASH", "4887f511028d113e5f11d0e6fc583916")
 
-# Dummy Web Server (Render Port Binding)
+# Dummy Web Server
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -33,21 +33,18 @@ app = Client(
     workers=8
 )
 
-# Async helper function for editing message securely
 async def safe_edit_text(message, text):
     try:
         await message.edit_text(text)
     except Exception:
         pass
 
-# --- LIVE DOWNLOAD PROGRESS HOOK ---
 def yt_dlp_progress_hook(d, loop, status_msg):
     if d['status'] == 'downloading':
         now = time.time()
         if not hasattr(yt_dlp_progress_hook, "last_update"):
             yt_dlp_progress_hook.last_update = 0
 
-        # Update every 3 seconds
         if (now - yt_dlp_progress_hook.last_update) > 3:
             yt_dlp_progress_hook.last_update = now
 
@@ -67,13 +64,11 @@ def yt_dlp_progress_hook(d, loop, status_msg):
                 f"⏳ **ETA:** {eta}"
             )
 
-            # Properly scheduled coroutine
             asyncio.run_coroutine_threadsafe(
                 safe_edit_text(status_msg, text),
                 loop
             )
 
-# --- LIVE UPLOAD PROGRESS FUNCTION ---
 async def upload_progress(current, total, status_msg, start_time):
     now = time.time()
     if not hasattr(upload_progress, "last_update"):
@@ -127,15 +122,17 @@ async def download_and_upload(client: Client, message: Message):
     video_path = f"{base_name}.mp4"
     loop = asyncio.get_running_loop()
 
+    # Fail-safe formatting settings
     ydl_opts = {
-        'format': 'best[ext=mp4]/best',
+        'format': 'best', # Select single pre-merged stream (No FFmpeg requirement)
         'outtmpl': video_path,
         'writethumbnail': True,
         'outtmpl': {'thumbnail': base_name},
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'geo_bypass': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'progress_hooks': [lambda d: yt_dlp_progress_hook(d, loop, status_msg)],
     }
 
@@ -143,7 +140,7 @@ async def download_and_upload(client: Client, message: Message):
     final_thumb = None
 
     try:
-        await status_msg.edit_text("🚀 **Starting High-Speed Download...**")
+        await status_msg.edit_text("🚀 **Starting Download...**")
 
         video_info = {}
 
@@ -199,10 +196,11 @@ async def download_and_upload(client: Client, message: Message):
                     except: pass
             await status_msg.delete()
         else:
-            await status_msg.edit_text("❌ Download fail ho gaya.")
+            await status_msg.edit_text("❌ Download fail ho gaya: File create nahi hui.")
 
     except Exception as e:
-        await status_msg.edit_text(f"⚠️ **Error:** `{str(e)[:200]}`")
+        # Prints exact error details on Telegram
+        await status_msg.edit_text(f"⚠️ **Error Details:**\n`{str(e)[:300]}`")
         for f in [video_path, raw_thumb, final_thumb]:
             if f and os.path.exists(f): 
                 try: os.remove(f)
@@ -210,5 +208,5 @@ async def download_and_upload(client: Client, message: Message):
 
 if __name__ == "__main__":
     threading.Thread(target=run_dummy_server, daemon=True).start()
-    print("Bot Active with Dual Live Progress...")
+    print("Bot Active...")
     app.run()
