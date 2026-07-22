@@ -55,16 +55,21 @@ async def process_video_link(client, message):
     unique_id = str(uuid.uuid4())[:8]
     custom_filename = f"video_{unique_id}.%(ext)s"
 
-    # Cleaned & Fixed yt-dlp options (Fixes NoneType setdefault error)
+    # YT-DLP Fixed Options for Extractor Crashes
     ydl_opts = {
         'outtmpl': custom_filename,
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'best',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'ignoreerrors': False,
-        'cachedir': False,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'geo_bypass': True,
+        'check_formats': False,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+        'headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+        }
     }
 
     file_path = None
@@ -84,7 +89,7 @@ async def process_video_link(client, message):
         file_path = await loop.run_in_executor(None, download)
         
         if not file_path or not os.path.exists(file_path):
-            await status_msg.edit_text("❌ Download fail ho gaya. Link invalid ya geo-blocked ho sakta hai.")
+            await status_msg.edit_text("❌ Download fail ho gaya. Extractor block hai ya link invalid hai.")
             return
 
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
@@ -129,7 +134,6 @@ async def process_video_link(client, message):
         await status_msg.edit_text(f"❌ Error: {str(e)}")
 
     finally:
-        # Cleanup file after upload
         if file_path and os.path.exists(file_path):
             try:
                 os.remove(file_path)
