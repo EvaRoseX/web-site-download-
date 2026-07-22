@@ -33,14 +33,21 @@ app = Client(
     workers=8
 )
 
+# Async helper function for editing message securely
+async def safe_edit_text(message, text):
+    try:
+        await message.edit_text(text)
+    except Exception:
+        pass
+
 # --- LIVE DOWNLOAD PROGRESS HOOK ---
 def yt_dlp_progress_hook(d, loop, status_msg):
     if d['status'] == 'downloading':
         now = time.time()
-        # Rate limit updates to avoid Telegram flood limits (every 3 seconds)
         if not hasattr(yt_dlp_progress_hook, "last_update"):
             yt_dlp_progress_hook.last_update = 0
 
+        # Update every 3 seconds
         if (now - yt_dlp_progress_hook.last_update) > 3:
             yt_dlp_progress_hook.last_update = now
 
@@ -60,8 +67,9 @@ def yt_dlp_progress_hook(d, loop, status_msg):
                 f"⏳ **ETA:** {eta}"
             )
 
+            # Properly scheduled coroutine
             asyncio.run_coroutine_threadsafe(
-                status_msg.edit_text(text),
+                safe_edit_text(status_msg, text),
                 loop
             )
 
@@ -119,7 +127,6 @@ async def download_and_upload(client: Client, message: Message):
     video_path = f"{base_name}.mp4"
     loop = asyncio.get_running_loop()
 
-    # yt-dlp Settings with Live Progress Hook
     ydl_opts = {
         'format': 'best[ext=mp4]/best',
         'outtmpl': video_path,
@@ -147,7 +154,6 @@ async def download_and_upload(client: Client, message: Message):
 
         await asyncio.to_thread(do_download)
 
-        # Find and fix thumbnail
         for ext in ['.jpg', '.webp', '.png', '.jpeg']:
             p_thumb = f"{base_name}{ext}"
             if os.path.exists(p_thumb):
@@ -187,7 +193,6 @@ async def download_and_upload(client: Client, message: Message):
                 progress_args=(status_msg, start_time)
             )
 
-            # Cleanup
             for f in [video_path, raw_thumb, final_thumb]:
                 if f and os.path.exists(f): 
                     try: os.remove(f)
