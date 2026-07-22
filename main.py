@@ -9,7 +9,7 @@ from PIL import Image
 import yt_dlp
 
 # --- CREDENTIALS ---
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8816078528:AAHdxpOtiknmkHOvH9dMnE6kin9cgJnhMrg")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8779483392:AAFmdT-b3--1vbvSBZ8nlffY24ZhdAGmP6A")
 API_ID = int(os.environ.get("API_ID", "26585721"))
 API_HASH = os.environ.get("API_HASH", "4887f511028d113e5f11d0e6fc583916")
 
