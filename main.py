@@ -2,6 +2,7 @@ import os
 import asyncio
 import time
 import uuid
+import re
 import yt_dlp
 from pyrogram import Client, filters
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -40,7 +41,7 @@ app = Client(
 
 @app.on_message(filters.command(["start", "help"]))
 async def send_welcome(client, message):
-    await message.reply("👋 Namaste! Link bhejiye, main fast speed me video upload kar dunga.")
+    await message.reply("👋 Namaste! Link bhejiye, main video upload kar dunga.")
 
 @app.on_message(filters.text & ~filters.command(["start", "help"]))
 async def process_video_link(client, message):
@@ -55,41 +56,44 @@ async def process_video_link(client, message):
     unique_id = str(uuid.uuid4())[:8]
     custom_filename = f"video_{unique_id}.%(ext)s"
 
-    # YT-DLP Fixed Options for Extractor Crashes
+    # Primary YT-DLP Options
     ydl_opts = {
         'outtmpl': custom_filename,
         'format': 'best',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'geo_bypass': True,
-        'check_formats': False,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
-        'headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-        }
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     }
 
     file_path = None
 
     try:
-        await status_msg.edit_text("📥 **Server par fast download ho raha hai...**")
+        await status_msg.edit_text("📥 **Server par download ho raha hai...**")
         
         loop = asyncio.get_running_loop()
 
         def download():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if not info:
-                    return None
-                return ydl.prepare_filename(info)
+            try:
+                # Attempt 1: Standard Extraction
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    if info:
+                        return ydl.prepare_filename(info)
+            except Exception:
+                # Attempt 2: Fallback to Generic Extractor (Bypasses broken site-specific extractor)
+                fallback_opts = ydl_opts.copy()
+                fallback_opts['force_generic_extractor'] = True
+                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    if info:
+                        return ydl.prepare_filename(info)
+            return None
 
         file_path = await loop.run_in_executor(None, download)
         
         if not file_path or not os.path.exists(file_path):
-            await status_msg.edit_text("❌ Download fail ho gaya. Extractor block hai ya link invalid hai.")
+            await status_msg.edit_text("❌ Is link ka extractor filhal site update ki vajah se broken hai. Dusri site ka link try karein.")
             return
 
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
@@ -101,7 +105,6 @@ async def process_video_link(client, message):
 
         last_update_time = [0]
 
-        # Live Upload Progress
         async def upload_progress(current, total):
             now = time.time()
             if now - last_update_time[0] > 3:
@@ -111,7 +114,7 @@ async def process_video_link(client, message):
                 tot_mb = total / (1024 * 1024)
                 try:
                     await status_msg.edit_text(
-                        f"⬆️ **Fast Speed Uploading...**\n\n"
+                        f"⬆️ **Uploading to Telegram...**\n\n"
                         f"📊 **Progress:** `{percent:.1f}%`\n"
                         f"📦 **Uploaded:** `{curr_mb:.1f} MB` / `{tot_mb:.1f} MB`"
                     )
@@ -120,7 +123,6 @@ async def process_video_link(client, message):
 
         await status_msg.edit_text(f"⬆️ **Upload start ho raha hai...** ({file_size_mb:.1f} MB)")
 
-        # Send Video to User
         await client.send_video(
             chat_id=message.chat.id,
             video=file_path,
