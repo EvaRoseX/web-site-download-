@@ -7,11 +7,11 @@ import yt_dlp
 # Logging setup
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Direct Bot Token (Render / Local par chalane ke liye)
-TOKEN = "8816078528:AAHdxpOtiknmkHOvH9dMnE6kin9cgJnhMrg"
+# Telegram Bot Token
+TOKEN = os.environ.get("BOT_TOKEN", "8816078528:AAHdxpOtiknmkHOvH9dMnE6kin9cgJnhMrg")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello! Koi bhi video URL bhejo, main use Telegram par upload kar doonga.")
+    await update.message.reply_text("Hello! Koi bhi video URL bhejo, main download karke bhej doonga.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
@@ -26,7 +26,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ydl_opts = {
         'format': 'best[ext=mp4]/best',
         'outtmpl': 'video.mp4',
-        'max_filesize': 50 * 1024 * 1024, # 50MB limit
+        'max_filesize': 50 * 1024 * 1024, # 50MB limit (Telegram Bot API limit)
         'quiet': True,
     }
 
@@ -38,7 +38,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.edit_text("Uploading to Telegram...")
             with open("video.mp4", "rb") as video:
                 await update.message.reply_video(video=video, caption="Here is your video!")
-            os.remove("video.mp4") # File delete karein
+            os.remove("video.mp4") # Downloaded file delete karein
             await msg.delete()
         else:
             await msg.edit_text("Video download karne mein koi dikkat aayi.")
@@ -53,12 +53,14 @@ def main():
         print("Error: BOT_TOKEN nahi mila!")
         return
 
+    # Modern python-telegram-bot v20+ setup
     app = Application.builder().token(TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("Bot chalu ho raha hai...")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
