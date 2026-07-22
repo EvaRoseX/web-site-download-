@@ -7,7 +7,9 @@ from pyrogram import Client, filters
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
-# 1. Render Port Bind Fix (Taaki Free Web Service active rahe)
+# ==========================================
+# 1. RENDER PORT BIND FIX (Free Web Service)
+# ==========================================
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -19,10 +21,12 @@ def run_http_server():
     server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
     server.serve_forever()
 
-# Background thread me HTTP server start karna
+# Background thread me HTTP server launch
 threading.Thread(target=run_http_server, daemon=True).start()
 
-# 2. Telegram Bot Configuration
+# ==========================================
+# 2. TELEGRAM BOT CONFIGURATION
+# ==========================================
 BOT_TOKEN = "8816078528:AAHdxpOtiknmkHOvH9dMnE6kin9cgJnhMrg"
 API_ID = 26585721
 API_HASH = "4887f511028d113e5f11d0e6fc583916"
@@ -32,12 +36,12 @@ app = Client(
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
-    workers=4
+    workers=8
 )
 
 @app.on_message(filters.command(["start", "help"]))
 async def send_welcome(client, message):
-    await message.reply("👋 Namaste! Link bhejiye, main fast speed me upload kar dunga.")
+    await message.reply("👋 Namaste! Link bhejiye, main fast speed me video upload kar dunga.")
 
 @app.on_message(filters.text & ~filters.command(["start", "help"]))
 async def process_video_link(client, message):
@@ -48,16 +52,30 @@ async def process_video_link(client, message):
         return
 
     status_msg = await message.reply("⏳ Link process ho raha hai...")
+    
+    # Har video ke liye Unique Filename
     unique_id = str(uuid.uuid4())[:8]
     custom_filename = f"video_{unique_id}.%(ext)s"
 
+    # YT-DLP Options (XHamster & Extractor Crash Fix Included)
     ydl_opts = {
         'outtmpl': custom_filename,
         'format': 'best',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        'ignoreerrors': True,
+        'extractor_args': {
+            'xhamster': {
+                'desktop': ['true']
+            }
+        },
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'http_headers': {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://xhamster.com/',
+        }
     }
 
     file_path = None
@@ -74,18 +92,19 @@ async def process_video_link(client, message):
         file_path = await loop.run_in_executor(None, download)
         
         if not file_path or not os.path.exists(file_path):
-            await status_msg.edit_text("❌ Download fail ho gaya.")
+            await status_msg.edit_text("❌ Download fail ho gaya. Link block ya invalid hai.")
             return
 
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
 
         if file_size_mb > 2000:
-            await status_msg.edit_text(f"❌ File Size ({file_size_mb:.1f} MB) 2 GB limit se bada hai.")
+            await status_msg.edit_text(f"❌ File Size ({file_size_mb:.1f} MB) Telegram ki 2 GB limit se bada hai.")
             os.remove(file_path)
             return
 
         last_update_time = [0]
 
+        # Live Upload Progress
         async def upload_progress(current, total):
             now = time.time()
             if now - last_update_time[0] > 3:
@@ -104,6 +123,7 @@ async def process_video_link(client, message):
 
         await status_msg.edit_text(f"⬆️ **Upload start ho raha hai...** ({file_size_mb:.1f} MB)")
 
+        # Send Video to User
         await client.send_video(
             chat_id=message.chat.id,
             video=file_path,
@@ -117,6 +137,7 @@ async def process_video_link(client, message):
         await status_msg.edit_text(f"❌ Error: {str(e)}")
 
     finally:
+        # Cleanup file after upload
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
 
