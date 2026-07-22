@@ -21,7 +21,6 @@ def run_http_server():
     server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
     server.serve_forever()
 
-# Background thread me HTTP server launch
 threading.Thread(target=run_http_server, daemon=True).start()
 
 # ==========================================
@@ -53,29 +52,19 @@ async def process_video_link(client, message):
 
     status_msg = await message.reply("⏳ Link process ho raha hai...")
     
-    # Har video ke liye Unique Filename
     unique_id = str(uuid.uuid4())[:8]
     custom_filename = f"video_{unique_id}.%(ext)s"
 
-    # YT-DLP Options (XHamster & Extractor Crash Fix Included)
+    # Cleaned & Fixed yt-dlp options (Fixes NoneType setdefault error)
     ydl_opts = {
         'outtmpl': custom_filename,
-        'format': 'best',
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'ignoreerrors': True,
-        'extractor_args': {
-            'xhamster': {
-                'desktop': ['true']
-            }
-        },
+        'ignoreerrors': False,
+        'cachedir': False,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'http_headers': {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://xhamster.com/',
-        }
     }
 
     file_path = None
@@ -84,15 +73,18 @@ async def process_video_link(client, message):
         await status_msg.edit_text("📥 **Server par fast download ho raha hai...**")
         
         loop = asyncio.get_running_loop()
+
         def download():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
+                if not info:
+                    return None
                 return ydl.prepare_filename(info)
 
         file_path = await loop.run_in_executor(None, download)
         
         if not file_path or not os.path.exists(file_path):
-            await status_msg.edit_text("❌ Download fail ho gaya. Link block ya invalid hai.")
+            await status_msg.edit_text("❌ Download fail ho gaya. Link invalid ya geo-blocked ho sakta hai.")
             return
 
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
@@ -139,7 +131,10 @@ async def process_video_link(client, message):
     finally:
         # Cleanup file after upload
         if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
 
 print("🤖 Bot ready hai...")
 app.run()
